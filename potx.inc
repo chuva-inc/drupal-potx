@@ -611,9 +611,8 @@ function _potx_translation_export($translation_export_langcode, $string, $plural
     // String with plural variants. Fill up source string array first.
     $plural = stripcslashes($plural);
     $strings = array();
-    $number_of_plurals = db_table_exists('{'. $language_table . '}') ?
-      db_query('SELECT plurals FROM {'. $language_table ."} WHERE {$language_column} = :langcode", array(':langcode' => $translation_export_langcode))->fetchField() :
-      0;
+    // Hard-codes number of plurals to 2.
+    $number_of_plurals = 2;
     $plural_index = 0;
     while ($plural_index < $number_of_plurals) {
       if ($plural_index == 0) {
@@ -627,21 +626,17 @@ function _potx_translation_export($translation_export_langcode, $string, $plural
       else {
         // More plural versions only if required, with the lookup source
         // string modified as imported into the database.
-        $strings[] = str_replace('@count', '@count['. $plural_index .']', $plural);
+        $strings[] = str_replace('@count', '@count[' . $plural_index . ']', $plural);
       }
       $plural_index++;
     }
 
     $output = '';
-    if (count($strings)) {
-      // Source string array was done, so export translations.
+    // If there are plural translations, iterates through them and saves them.
+    if (count($strings) && ($translation = db_query("SELECT t.translation FROM {locales_source} s LEFT JOIN {locales_target} t ON t.lid = s.lid WHERE s.source = :source AND t.{$language_column} = :langcode", array(':source' => $string . "\x03" . $plural, ':langcode' => $translation_export_langcode))->fetchField())) {
       foreach ($strings as $index => $string) {
-        if ($translation = db_query("SELECT t.translation FROM {locales_source} s LEFT JOIN {locales_target} t ON t.lid = s.lid WHERE s.source = :source AND t.{$language_column} = :langcode", array(':source' => $string, ':langcode' => $translation_export_langcode))->fetchField()) {
-          $output .= 'msgstr['. $index .'] '. _locale_export_string(_locale_export_remove_plural($translation));
-        }
-        else {
-          $output .= "msgstr[". $index ."] \"\"\n";
-        }
+        print "\n" . $translation . "\n" . $index . "\n";
+        $output .= 'msgstr[' . $index . '] ' . _locale_export_string(explode("\x03", $translation)[$index]);
       }
     }
     else {
